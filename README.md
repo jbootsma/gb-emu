@@ -3,6 +3,7 @@ Yet another gameboy emulator, written in C++
 
 ## Structure
 - `src` Folder for all source code.
+- `test-roms` Submodule of various test roms.
 - `waf(.bat)` Waf command script for building code.
 - `wscript` Actual build script used by waf.
 
