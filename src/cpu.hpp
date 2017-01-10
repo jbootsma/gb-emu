@@ -68,7 +68,6 @@ public:
 
     const CPU_Control *ctrl;
 
-    std::uint8_t data;
     std::uint16_t T;
     bool cond_flag;
 

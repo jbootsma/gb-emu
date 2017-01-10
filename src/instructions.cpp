@@ -121,6 +121,12 @@ static void check_op(const CPU_Control& ctrl)
     // Need an address for reads/writes.
     if (ctrl.read || ctrl.write) assert(ctrl.adr != REG16::none);
 
+    // Writes also need a dest.
+    if (ctrl.write) assert(ctrl.mem_reg != REG8::none);
+
+    // Reads need a dest if not used for instruction decode.
+    if (ctrl.read && !ctrl.decode && !ctrl.decode_cb) assert(ctrl.mem_reg != REG8::none);
+
     // Only one instruction decode at a time.
     assert(!ctrl.decode || !ctrl.decode_cb);
 
@@ -197,7 +203,7 @@ static void check_op(const CPU_Control& ctrl)
         assert(ctrl.alu_r8 == REG8::none);
         break;
     case ALU_OP::pc_set:
-        assert(ctrl.alu_r16 == REG16::T || ctrl.alu_r16 == REG16::HL1);
+        assert(ctrl.alu_r16 == REG16::T || ctrl.alu_r16 == REG16::HL);
         // FALL THROUGH
     case ALU_OP::sp_adjust:
     case ALU_OP::inc16:
@@ -221,6 +227,16 @@ static void check_op(const CPU_Control& ctrl)
 
 std::vector<Instructions::Instruction> Instructions::make_ops()
 {
+    // When looking through the code here it can be helpful to think of each machine cycle (single ctrl value) as being the following stages in order.
+    //
+    // 1. Decode op_code
+    // 2. LD operation
+    // 3. ALU operation
+    // 4. SYS operation
+    // 5. Memory read/write
+    //
+    // This way the last thing each instruction does is fetch the next opcode in it's memory operation, and the first thing each instruction does is decode it's opcode.
+
     std::vector<Instruction> ops;
 
     ops.resize((std::size_t)UINT8_MAX + 1);
@@ -257,9 +273,7 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
             // LD R8, d8
             ctrl.read = true;
             ctrl.adr = REG16::PC;
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = map8((op_code >> 3) & 7);
+            ctrl.mem_reg = map8((op_code >> 3) & 7);
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -325,32 +339,18 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
             break;
 
         case 0x02:
-        case 0x12:
-        case 0x22:
-        case 0x32:
-            // LD (R16), A
-            ctrl.ld = true;
-            ctrl.src = REG8::A;
-            ctrl.dst = REG8::DATA;
-            ctrl.write = true;
-            ctrl.adr = map16((op_code >> 4) & 3);
-            op.push_back(ctrl);
-
-            reset(ctrl);
-            add_fetch(ctrl);
-            op.push_back(ctrl);
-            break;
-
         case 0x0a:
+        case 0x12:
         case 0x1a:
+        case 0x22:
         case 0x2a:
+        case 0x32:
         case 0x3a:
-            // LD A, (R16)
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = REG8::A;
-            ctrl.read = true;
+            // LD (R16) <==> A
+            ctrl.read = !!(op_code & 0x08);
+            ctrl.write = !ctrl.read;
             ctrl.adr = map16((op_code >> 4) & 3);
+            ctrl.mem_reg = REG8::A;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -366,11 +366,9 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
         case 0x75:
         case 0x77:
             // LD (HL), R8
-            ctrl.ld = true;
-            ctrl.src = map8(op_code & 7);
-            ctrl.dst = REG8::DATA;
             ctrl.write = true;
             ctrl.adr = REG16::HL;
+            ctrl.mem_reg = map8(op_code & 7);
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -386,11 +384,9 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
         case 0x6e:
         case 0x7e:
             // LD R8, (HL)
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = map8((op_code >> 3) & 7);
             ctrl.read = true;
             ctrl.adr = REG16::HL;
+            ctrl.mem_reg = map8((op_code >> 3) & 7);
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -400,19 +396,15 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
 
         case 0x36:
             // LD (HL), d8
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = REG8::TL;
             ctrl.read = true;
             ctrl.adr = REG16::PC;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
             reset(ctrl);
-            ctrl.ld = true;
-            ctrl.src = REG8::TL;
-            ctrl.dst = REG8::DATA;
             ctrl.write = true;
             ctrl.adr = REG16::HL;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -423,31 +415,19 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
         case 0xea:
         case 0xfa:
             // LD (a16) <==> A
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = REG8::TL;
             ctrl.read = true;
             ctrl.adr = REG16::PC;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
-            ctrl.dst = REG8::TH;
+            ctrl.mem_reg = REG8::TH;
             op.push_back(ctrl);
 
             reset(ctrl);
-            ctrl.ld = true;
-            if (op_code & 0x10)
-            {
-                ctrl.src = REG8::DATA;
-                ctrl.dst = REG8::A;
-                ctrl.read = true;
-            }
-            else
-            {
-                ctrl.src = REG8::A;
-                ctrl.dst = REG8::DATA;
-                ctrl.write = true;
-            }
+            ctrl.read = (op_code == 0xfa);
+            ctrl.write = !ctrl.read;
             ctrl.adr = REG16::T;
+            ctrl.mem_reg = REG8::A;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -458,28 +438,16 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
         case 0xe0:
         case 0xf0:
             // LDH (a8) <=> A
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = REG8::TL;
             ctrl.read = true;
             ctrl.adr = REG16::PC;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
             reset(ctrl);
-            ctrl.ld = true;
-            if (op_code & 0x10)
-            {
-                ctrl.src = REG8::DATA;
-                ctrl.dst = REG8::A;
-                ctrl.read = true;
-            }
-            else
-            {
-                ctrl.src = REG8::A;
-                ctrl.dst = REG8::DATA;
-                ctrl.write = true;
-            }
+            ctrl.read = (op_code == 0xf0);
+            ctrl.write = !ctrl.read;
             ctrl.adr = REG16::OTL;
+            ctrl.mem_reg = REG8::A;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -490,20 +458,10 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
         case 0xe2:
         case 0xf2:
             // LD (C) <==> A
-            ctrl.ld = true;
-            if (op_code & 0x10)
-            {
-                ctrl.src = REG8::DATA;
-                ctrl.dst = REG8::A;
-                ctrl.read = true;
-            }
-            else
-            {
-                ctrl.src = REG8::A;
-                ctrl.dst = REG8::DATA;
-                ctrl.write = true;
-            }
+            ctrl.read = (op_code == 0xf2);
+            ctrl.write = !ctrl.read;
             ctrl.adr = REG16::OC;
+            ctrl.mem_reg = REG8::A;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -516,16 +474,14 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
         case 0x21:
         case 0x31:
             // LD R16, d16
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = map8(((op_code >> 3) & 6) | 1);
-            if (ctrl.dst == REG8::A) ctrl.dst = REG8::SPL;
             ctrl.read = true;
-            ctrl.adr = REG16::PC;            
+            ctrl.adr = REG16::PC;
+            ctrl.mem_reg = map8(((op_code >> 3) & 6) | 1);
+            if (ctrl.mem_reg == REG8::A) ctrl.mem_reg = REG8::SPL;
             op.push_back(ctrl);
 
-            ctrl.dst = map8((op_code >> 3) & 6);
-            if (ctrl.dst == REG8::F) ctrl.dst = REG8::SPH;
+            ctrl.mem_reg = map8((op_code >> 3) & 6);
+            if (ctrl.mem_reg == REG8::F) ctrl.mem_reg = REG8::SPH;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -538,16 +494,14 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
         case 0xE1:
         case 0xF1:
             // POP R16
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = map8(((op_code >> 3) & 6) | 1);
-            if (ctrl.dst == REG8::A) ctrl.dst = REG8::F;
             ctrl.read = true;
             ctrl.adr = REG16::SP;
+            ctrl.mem_reg = map8(((op_code >> 3) & 6) | 1);
+            if (ctrl.mem_reg == REG8::A) ctrl.mem_reg = REG8::F;
             op.push_back(ctrl);
 
-            ctrl.dst = map8((op_code >> 3) & 6);
-            if (ctrl.dst == REG8::F) ctrl.dst = REG8::A;
+            ctrl.mem_reg = map8((op_code >> 3) & 6);
+            if (ctrl.mem_reg == REG8::F) ctrl.mem_reg = REG8::A;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -563,16 +517,14 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
             // Dummy cycle, I'm guessing the original hardware needed this to pre-decrement SP
             op.push_back(ctrl);
 
-            ctrl.ld = true;
-            ctrl.src = map8((op_code >> 3) & 6);
-            if (ctrl.src == REG8::F) ctrl.src = REG8::A;
-            ctrl.dst = REG8::DATA;
             ctrl.write = true;
             ctrl.adr = REG16::SP;
+            ctrl.mem_reg = map8((op_code >> 3) & 6);
+            if (ctrl.mem_reg == REG8::F) ctrl.mem_reg = REG8::A;
             op.push_back(ctrl);
 
-            ctrl.src = map8(((op_code >> 3) & 6) | 1);
-            if (ctrl.src == REG8::A) ctrl.src = REG8::F;
+            ctrl.mem_reg = map8(((op_code >> 3) & 6) | 1);
+            if (ctrl.mem_reg == REG8::A) ctrl.mem_reg = REG8::F;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -582,26 +534,22 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
 
         case 0x08:
             // LD (a16), SP
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = REG8::TL;
             ctrl.read = true;
             ctrl.adr = REG16::PC;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
-            ctrl.dst = REG8::TH;
+            ctrl.mem_reg = REG8::TH;
             op.push_back(ctrl);
 
             reset(ctrl);
-            ctrl.ld = true;
-            ctrl.src = REG8::SPL;
-            ctrl.dst = REG8::DATA;
             ctrl.write = true;
             ctrl.adr = REG16::T;
+            ctrl.mem_reg = REG8::SPL;
             op.push_back(ctrl);
 
-            ctrl.src = REG8::SPH;
             ctrl.adr = REG16::TP1;
+            ctrl.mem_reg = REG8::SPH;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -611,11 +559,9 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
 
         case 0xF8:
             // LD HL, SP+r8
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = REG8::TL;
             ctrl.read = true;
             ctrl.adr = REG16::PC;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -712,18 +658,6 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
         case 0xae:
         case 0xb6:
         case 0xbe:
-            // ALU A, (HL)
-            ctrl.read = true;
-            ctrl.adr = REG16::HL;
-            map_alu_op(ctrl, (op_code >> 3) & 7);
-            ctrl.alu_r8 = REG8::DATA;
-            op.push_back(ctrl);
-
-            reset(ctrl);
-            add_fetch(ctrl);
-            op.push_back(ctrl);
-            break;
-
         case 0xc6:
         case 0xce:
         case 0xd6:
@@ -732,17 +666,19 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
         case 0xee:
         case 0xf6:
         case 0xfe:
-            // ALU A, d8
+            // ALU A, (HL)/d8
             ctrl.read = true;
-            ctrl.adr = REG16::PC;
-            map_alu_op(ctrl, (op_code >> 3) & 7);
-            ctrl.alu_r8 = REG8::DATA;
+            ctrl.adr = (op_code < 0xc0) ? REG16::HL : REG16::PC;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
             reset(ctrl);
+            map_alu_op(ctrl, (op_code >> 3) & 7);
+            ctrl.alu_r8 = REG8::TL;
             add_fetch(ctrl);
             op.push_back(ctrl);
             break;
+
         case 0x04:
         case 0x05:
         case 0x0c:
@@ -769,13 +705,15 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
             // INC/DEC (HL)
             ctrl.read = true;
             ctrl.adr = REG16::HL;
-            ctrl.alu_op = (op_code & 0x1) ? ALU_OP::dec : ALU_OP::inc;
-            ctrl.alu_r8 = REG8::DATA;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
             reset(ctrl);
+            ctrl.alu_op = (op_code & 0x1) ? ALU_OP::dec : ALU_OP::inc;
+            ctrl.alu_r8 = REG8::TL;
             ctrl.write = true;
             ctrl.adr = REG16::HL;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -862,10 +800,9 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
 
         case 0xe8:
             // ADD SP, r8
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = REG8::TL;
+            ctrl.read = true;
             ctrl.adr = REG16::PC;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -874,6 +811,7 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
             op.push_back(ctrl);
 
             reset(ctrl);
+            // Dummy cycle. Actual hardware probably needed 2 cycles to do the 16-bit add.
             op.push_back(ctrl);
 
             add_fetch(ctrl);
@@ -889,24 +827,20 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
         case 0xf7:
         case 0xff:
             // RST
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = REG8::TL;
+            // Dummy cycle, see PUSH notes.
             op.push_back(ctrl);
 
             ctrl.write = true;
             ctrl.adr = REG16::SP;
-            ctrl.ld = true;
-            ctrl.src = REG8::PCH;
-            ctrl.dst = REG8::DATA;
+            ctrl.mem_reg = REG8::PCH;
             op.push_back(ctrl);
 
-            ctrl.src = REG8::PCL;
-            ctrl.alu_op = ALU_OP::pc_reset;
-            ctrl.mask = op_code & 0x38;
+            ctrl.mem_reg = REG8::PCL;
             op.push_back(ctrl);
 
             reset(ctrl);
+            ctrl.alu_op = ALU_OP::pc_reset;
+            ctrl.mask = op_code & 0x38;
             add_fetch(ctrl);
             op.push_back(ctrl);
             break;
@@ -919,9 +853,7 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
             // JR r8
             ctrl.read = true;
             ctrl.adr = REG16::PC;
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = REG8::TL;
+            ctrl.mem_reg = REG8::TL;
             ctrl.cond_op = (op_code == 0x18) ? CONDITION::always : map_cond((op_code >> 3) & 3);
             op.push_back(ctrl);
 
@@ -943,12 +875,10 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
             // JP a16
             ctrl.read = true;
             ctrl.adr = REG16::PC;
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = REG8::TL;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
-            ctrl.dst = REG8::TH;
+            ctrl.mem_reg = REG8::TH;
             ctrl.cond_op = (op_code == 0xc3) ? CONDITION::always : map_cond((op_code >> 3) & 3);
             op.push_back(ctrl);
 
@@ -965,11 +895,9 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
 
         case 0xe9:
             // JP HL
-            ctrl.read = true;
-            ctrl.adr = REG16::HL;
-            ctrl.decode = true;
             ctrl.alu_op = ALU_OP::pc_set;
-            ctrl.alu_r16 = REG16::HL1;
+            ctrl.alu_r16 = REG16::HL;
+            add_fetch(ctrl);
             op.push_back(ctrl);
             break;
 
@@ -981,28 +909,25 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
             // CALL a16
             ctrl.read = true;
             ctrl.adr = REG16::PC;
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = REG8::TL;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
-            ctrl.dst = REG8::TH;
+            ctrl.mem_reg = REG8::TH;
             ctrl.cond_op = (op_code == 0xcd) ? CONDITION::always : map_cond((op_code >> 3) & 3);
             op.push_back(ctrl);
 
             reset(ctrl);
             ctrl.cond_op = CONDITION::check;
-            // Dummy op, see notes in push.
-            op.push_back(ctrl);
-
             ctrl.write = true;
             ctrl.adr = REG16::SP;
-            ctrl.ld = true;
-            ctrl.src = REG8::PCH;
-            ctrl.dst = REG8::DATA;
+            ctrl.mem_reg = REG8::PCH;
             op.push_back(ctrl);
 
-            ctrl.src = REG8::PCL;
+            ctrl.mem_reg = REG8::PCL;
+            op.push_back(ctrl);
+
+            reset(ctrl);
+            ctrl.cond_op = CONDITION::check;
             ctrl.alu_op = ALU_OP::pc_set;
             ctrl.alu_r16 = REG16::T;
             op.push_back(ctrl);
@@ -1032,12 +957,10 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
             if ((op_code & 0xf) != 0x9) ctrl.cond_op = CONDITION::check;
             ctrl.read = true;
             ctrl.adr = REG16::SP;
-            ctrl.ld = true;
-            ctrl.src = REG8::DATA;
-            ctrl.dst = REG8::PCL;
+            ctrl.mem_reg = REG8::PCL;
             op.push_back(ctrl);
 
-            ctrl.dst = REG8::PCH;
+            ctrl.mem_reg = REG8::PCH;
             op.push_back(ctrl);
 
             reset(ctrl);
@@ -1047,8 +970,8 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
             op.push_back(ctrl);
 
             reset(ctrl);
-            add_fetch(ctrl);
             if (op_code == 0xd9) ctrl.sys_op = SYS_OP::ei;
+            add_fetch(ctrl);
             op.push_back(ctrl);
             break;
 
@@ -1147,6 +1070,16 @@ std::vector<Instructions::Instruction> Instructions::make_cb_ops()
 
         reset(ctrl);
 
+        if (ctrl.alu_r8 == REG8::F)
+        {
+            ctrl.read = true;
+            ctrl.adr = REG16::HL;
+            ctrl.mem_reg = REG8::TL;
+            op.push_back(ctrl);
+
+            reset(ctrl);
+        }
+
         if (op_code < 0x40)
         {
             switch (op_code >> 3)
@@ -1197,16 +1130,12 @@ std::vector<Instructions::Instruction> Instructions::make_cb_ops()
 
         ctrl.alu_r8 = map8(op_code & 7);
 
+        
         if (ctrl.alu_r8 == REG8::F)
         {
-            ctrl.read = true;
-            ctrl.adr = REG16::HL;
-            ctrl.alu_r8 = REG8::DATA;
-            op.push_back(ctrl);
-
-            reset(ctrl);
             ctrl.write = true;
             ctrl.adr = REG16::HL;
+            ctrl.mem_reg = REG8::TL;
             op.push_back(ctrl);
 
             reset(ctrl);

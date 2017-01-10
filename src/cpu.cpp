@@ -68,7 +68,6 @@ std::uint8_t CPU::getr8(REG8 reg)
     case REG8::PCL: return (std::uint8_t)(PC);
     case REG8::SPH: return (std::uint8_t)(SP >> 8);
     case REG8::SPL: return (std::uint8_t)(SP);
-    case REG8::DATA: return data;
     case REG8::TH: return (std::uint8_t)(T >> 8);
     case REG8::TL: return (std::uint8_t)(T);
     default:
@@ -93,7 +92,6 @@ void CPU::setr8(REG8 reg, std::uint8_t val)
     case REG8::PCL: PC = (PC & 0xFF00) | val; break;
     case REG8::SPH: SP = (SP & 0x00FF) | (val << 8); break;
     case REG8::SPL: SP = (SP & 0xFF00) | val; break;
-    case REG8::DATA: data = val; break;
     case REG8::TH: T = (T & 0x00FF) | (val << 8); break;
     case REG8::TL: T = (T & 0xFF00) | val; break;
     default:
@@ -121,7 +119,6 @@ std::uint16_t CPU::getr16(REG16 reg)
             break16(val - 1, H, L);
             return val;
         }
-    case REG16::HL1: return make16(H, L) + 1;
     case REG16::PC: return PC++;
     case REG16::SP: return SP;
     case REG16::T: return T;
@@ -152,23 +149,71 @@ void CPU::setr16(REG16 reg, std::uint16_t val)
 
 void CPU::step()
 {
+    std::uint8_t data_in = 0;
+
     // Note, data is likely sampled at end of 3rd sub cycle
     // https://forums.nesdev.com/viewtopic.php?f=20&t=14014
     if (ctrl->read)
     {
-        data = mmu->read_mem(getr16(ctrl->adr));
+        data_in = mmu->read_mem(getr16(ctrl->adr));
+        // Need an explicit check as here the reg can be none as a special case.
+        if (ctrl->mem_reg != REG8::none) setr8(ctrl->mem_reg, data_in);
         if (ctrl->adr == REG16::SP) ++SP;
-    }
-
-    if (ctrl->ld)
-    {
-        setr8(ctrl->dst, getr8(ctrl->src));
     }
 
     if (ctrl->write)
     {
         if (ctrl->adr == REG16::SP) --SP;
-        mmu->write_mem(getr16(ctrl->adr), data);
+        mmu->write_mem(getr16(ctrl->adr), getr8(ctrl->mem_reg));
+    }
+
+    if (ctrl->decode)
+    {
+        try
+        {
+            ctrl = &instr.ops[data_in].at(0);
+        }
+        catch (std::out_of_range&)
+        {
+            throw std::runtime_error("Unimplemented op code");
+        }
+    }
+    else if (ctrl->decode_cb)
+    {
+        ctrl = &instr.cb_ops[data_in][0];
+    }
+    else
+    {
+        ctrl++;
+    }
+
+    switch (ctrl->cond_op)
+    {
+    case CONDITION::none:
+        break;
+    case CONDITION::NZ:
+        cond_flag = !(F & z_mask);
+        break;
+    case CONDITION::Z:
+        cond_flag = !!(F & z_mask);
+        break;
+    case CONDITION::NC:
+        cond_flag = !(F & c_mask);
+        break;
+    case CONDITION::C:
+        cond_flag = !!(F& c_mask);
+        break;
+    case CONDITION::always:
+        cond_flag = true;
+        break;
+    case CONDITION::check:
+        while (!cond_flag && ctrl->cond_op == CONDITION::check) ctrl++;
+        break;
+    }
+
+    if (ctrl->ld)
+    {
+        setr8(ctrl->dst, getr8(ctrl->src));
     }
 
     switch (ctrl->alu_op)
@@ -423,50 +468,6 @@ void CPU::step()
 
             break16(result, H, L);
         }
-        break;
-    }
-
-    if (ctrl->decode)
-    {
-        try
-        {
-            ctrl = &instr.ops[data].at(0);
-        }
-        catch (std::out_of_range&)
-        {
-            throw std::runtime_error("Unimplemented op code");
-        }
-    }
-    else if (ctrl->decode_cb)
-    {
-        ctrl = &instr.cb_ops[data][0];
-    }
-    else
-    {
-        ctrl++;
-    }
-
-    switch (ctrl->cond_op)
-    {
-    case CONDITION::none:
-        break;
-    case CONDITION::NZ:
-        cond_flag = !(F & z_mask);
-        break;
-    case CONDITION::Z:
-        cond_flag = !!(F & z_mask);
-        break;
-    case CONDITION::NC:
-        cond_flag = !(F & c_mask);
-        break;
-    case CONDITION::C:
-        cond_flag = !!(F& c_mask);
-        break;
-    case CONDITION::always:
-        cond_flag = true;
-        break;
-    case CONDITION::check:
-        while (!cond_flag && ctrl->cond_op == CONDITION::check) ctrl++;
         break;
     }
 

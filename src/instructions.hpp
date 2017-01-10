@@ -35,7 +35,6 @@ enum class REG8
     PCL,    // Low word of program counter
     SPH,    // High word of stack pointer
     SPL,    // Low word of stack pointer
-    DATA,   // Data input/output
     TH,     // High temp byte
     TL,     // Low temp byte
 };
@@ -49,7 +48,6 @@ enum class REG16
     HL,     // Core
     HLP,    // HL with increment
     HLM,    // HL with decrement
-    HL1,    // HL + 1
     PC,     // Core
     SP,     // Core
     T,      // Temp reg
@@ -116,6 +114,7 @@ struct CPU_Control
     bool read;
     bool write;
     REG16 adr;
+    REG8 mem_reg;
 
     bool decode;
     bool decode_cb;
