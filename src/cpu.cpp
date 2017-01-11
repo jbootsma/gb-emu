@@ -238,8 +238,8 @@ void CPU::step()
             }
 
             std::uint16_t result = (std::uint16_t)src + A + (carry ? 1 : 0);
-            if (!!(result & 0x100)) F ^= c_mask;
-            if (!!((result & 0x10) ^ (src & 0x10) ^ (A & 0x10))) F ^= h_mask;
+            if (result & 0x100) F ^= c_mask;
+            if (0x10 & (result ^ src ^ A)) F ^= h_mask;
             if ((result & 0xFF) == 0) F |= z_mask;
 
             if (ctrl->alu_op != ALU_OP::cp) A = (std::uint8_t)result;
@@ -296,37 +296,37 @@ void CPU::step()
 
     case ALU_OP::daa:
         {
-            F &= (z_mask | h_mask);
-
             std::uint16_t temp = A;
 
-            if ((F & h_mask) || (temp & 0xF) > 9)
+            if (F & n_mask)
             {
-                if (F & n_mask)
+                if (F & h_mask)
                 {
                     temp -= 6;
                 }
-                else
-                {
-                    temp += 6;
-                }
-            }
 
-            if ((F & c_mask) || (temp & 0xF0) > (9 << 4))
-            {
-                if (F & n_mask)
+                if (F & c_mask)
                 {
                     temp -= 6 << 4;
                 }
-                else
+            }
+            else
+            {
+                if ((F & h_mask) || (temp & 0xF) > 9)
+                {
+                    temp += 6;
+                }
+
+                if ((F & c_mask) || (temp & 0xFFF0) > (9 << 4))
                 {
                     temp += 6 << 4;
                 }
+                if (temp & 0x100) F |= c_mask;
             }
 
             A = (std::uint8_t) temp;
+            F &= ~(z_mask | h_mask);
             if (A == 0) F |= z_mask;
-            if (temp & 0x100) temp |= c_mask;
         }
         break;
 
@@ -422,12 +422,12 @@ void CPU::step()
     case ALU_OP::sp_adjust:
         {
             std::uint16_t adjust = T & 0xFF;
-            if (adjust & 0x80) adjust |= 0xFF;
+            if (adjust & 0x80) adjust |= 0xFF00;
 
             F = 0;
             std::uint16_t result = SP + adjust;
-            if ((result & 0xF) < (adjust & 0xF)) F |= h_mask;
-            if ((result & 0xFF) < (adjust & 0xFF)) F |= c_mask;
+            if (0x0010 & (result ^ adjust ^ SP)) F |= h_mask;
+            if (0x0100 & (result ^ adjust ^ SP)) F |= c_mask;
 
             setr16(ctrl->alu_r16, result);
         }
@@ -460,13 +460,13 @@ void CPU::step()
     case ALU_OP::add16:
         {
             F &= ~(n_mask | h_mask | c_mask);
-            std::uint16_t result = getr16(ctrl->alu_r16);
-            result += make16(H, L);
+            std::uint16_t src = getr16(ctrl->alu_r16);
+            std::uint32_t result = src + make16(H, L);
 
-            if ((result >> 8) < H) F |= c_mask;
-            if ((result >> 12) < (H >> 4)) F |= h_mask;
+            if (result & 0x10000) F |= c_mask;
+            if (0x1000 & (result ^ src ^ (H << 8))) F |= h_mask;
 
-            break16(result, H, L);
+            break16((std::uint16_t)result, H, L);
         }
         break;
     }

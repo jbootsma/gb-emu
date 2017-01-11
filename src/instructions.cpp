@@ -771,7 +771,7 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
         case 0x33:
         case 0x3b:
             // INC/DEC R16
-            ctrl.alu_op = (op_code & 0x80) ? ALU_OP::dec16 : ALU_OP::inc16;
+            ctrl.alu_op = (op_code & 0x08) ? ALU_OP::dec16 : ALU_OP::inc16;
             ctrl.alu_r16 = map16((op_code >> 4) & 3);
             if (ctrl.alu_r16 == REG16::HLP) ctrl.alu_r16 = REG16::HL;
             if (ctrl.alu_r16 == REG16::HLM) ctrl.alu_r16 = REG16::SP;
@@ -1067,10 +1067,11 @@ std::vector<Instructions::Instruction> Instructions::make_cb_ops()
     {
         CPU_Control ctrl;
         Instruction &op = ops.at(op_code);
+        REG8 target = map8(op_code & 7);
 
         reset(ctrl);
 
-        if (ctrl.alu_r8 == REG8::F)
+        if (target == REG8::F)
         {
             ctrl.read = true;
             ctrl.adr = REG16::HL;
@@ -1127,12 +1128,10 @@ std::vector<Instructions::Instruction> Instructions::make_cb_ops()
         {
             ctrl.mask = (1 << ((op_code >> 3) & 7));
         }
-
-        ctrl.alu_r8 = map8(op_code & 7);
-
         
-        if (ctrl.alu_r8 == REG8::F)
+        if (target == REG8::F)
         {
+            ctrl.alu_r8 = REG8::TL;
             ctrl.write = true;
             ctrl.adr = REG16::HL;
             ctrl.mem_reg = REG8::TL;
@@ -1144,6 +1143,7 @@ std::vector<Instructions::Instruction> Instructions::make_cb_ops()
         }
         else
         {
+            ctrl.alu_r8 = target;
             add_fetch(ctrl);
             op.push_back(ctrl);
         }
