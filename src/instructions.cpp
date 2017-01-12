@@ -233,7 +233,8 @@ std::vector<Instructions::Instruction> Instructions::make_ops()
     // 2. LD operation
     // 3. ALU operation
     // 4. SYS operation
-    // 5. Memory read/write
+    //                          <interrupts can occur here if decode == true>
+    // 5. Memory read/write     <This is the fetch of the next instruction if decode == true>
     //
     // This way the last thing each instruction does is fetch the next opcode in it's memory operation, and the first thing each instruction does is decode it's opcode.
 
@@ -1186,4 +1187,35 @@ std::vector<Instructions::Instruction> Instructions::make_cb_ops()
     }
 
     return ops;
+}
+
+Instructions::Instruction Instructions::make_interrupt_op()
+{
+    Instruction op;
+    CPU_Control ctrl;
+    reset(ctrl);
+
+    // The interrupt vector will be pushed to T
+
+    // Dummy cycle, see PUSH notes.
+    op.push_back(ctrl);
+
+    ctrl.write = true;
+    ctrl.adr = REG16::SP;
+    ctrl.mem_reg = REG8::PCH;
+    op.push_back(ctrl);
+
+    ctrl.mem_reg = REG8::PCL;
+    op.push_back(ctrl);
+
+    reset(ctrl);
+    ctrl.alu_op = ALU_OP::pc_set;
+    ctrl.alu_r16 = REG16::T;
+    ctrl.sys_op = SYS_OP::di;
+    add_fetch(ctrl);
+    op.push_back(ctrl);
+
+    for (const CPU_Control &c : op) check_op(c);
+
+    return op;
 }

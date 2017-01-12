@@ -20,13 +20,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "cpu.hpp"
 #include "mmu.hpp"
+#include "interrupt_controller.hpp"
 
 static const std::uint8_t test_code[] = {0xd3};
 
 int main(int, char **argv)
 {
-    std::unique_ptr<MMU> mmu(new MMU());
-    std::unique_ptr<CPU> cpu(new CPU(mmu.get()));
+    std::unique_ptr<InterruptController> ic(new InterruptController());
+    std::unique_ptr<MMU> mmu(new MMU(ic.get()));
+    std::unique_ptr<CPU> cpu(new CPU(mmu.get(), ic.get()));
 
     std::ifstream infile(argv[1], std::ios::in | std::ios::binary);
 

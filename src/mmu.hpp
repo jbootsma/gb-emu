@@ -21,6 +21,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cstddef>
 #include <cstdint>
 
+class InterruptController;
+
 class MMU
 {
 public:
@@ -28,8 +30,13 @@ public:
     std::uint8_t read_mem(std::uint16_t adr);
     void write_mem(std::uint16_t adr, std::uint8_t val);
 
+    MMU(InterruptController *ic) :
+        ic(ic)
+    {}
+
 private:
     std::uint8_t mem[(std::size_t)UINT16_MAX + 1];
+    InterruptController *ic;
 };
 
 #endif

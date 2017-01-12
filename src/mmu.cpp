@@ -18,14 +18,37 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "mmu.hpp"
 #include <iostream>
 
+#include "interrupt_controller.hpp"
+
 std::uint8_t MMU::read_mem(std::uint16_t adr)
 {
-    return mem[adr];
+    switch (adr)
+    {
+    case IF_ADR:
+        return ic->getIF();
+    case IE_ADR:
+        return ic->getIE();
+    default:
+        return mem[adr];
+    }
 }
 
 void MMU::write_mem(std::uint16_t adr, std::uint8_t val)
 {
-    mem[adr] = val;
-
-    if (adr == 0xFF01) std::cout << (char)val;
+    switch (adr)
+    {
+    case 0xFF01:
+        std::cout << (char)val;
+        mem[adr] = val;
+        break;
+    case IF_ADR:
+        ic->setIF(val);
+        break;
+    case IE_ADR:
+        ic->setIE(val);
+        break;
+    default:
+        mem[adr] = val;
+        break;
+    }
 }

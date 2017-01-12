@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <cassert>
 
+#include "interrupt_controller.hpp"
 #include "mmu.hpp"
 
 static std::uint16_t make16(std::uint8_t hi, std::uint8_t lo)
@@ -47,7 +48,7 @@ void CPU::reset()
     PC = 0x100;
     SP = 0;
 
-    interrupts_enabled = false;
+    ime = false;
 
     ctrl = &instr.ops[0].front();
 }
@@ -150,6 +151,14 @@ void CPU::setr16(REG16 reg, std::uint16_t val)
 void CPU::step()
 {
     std::uint8_t data_in = 0;
+
+    if (ctrl->decode &&         // Can only interrupt at the end of an exception.
+        ime &&                  // and only if interrupts are enabled.
+        ic->interrupt_pending())  // and only if an interrupt is actually pending.
+    {
+        T = ic->accept_interrupt();
+        ctrl = &instr.interrupt_op[0];
+    }
 
     // Note, data is likely sampled at end of 3rd sub cycle
     // https://forums.nesdev.com/viewtopic.php?f=20&t=14014
@@ -471,5 +480,13 @@ void CPU::step()
         break;
     }
 
-    // TODO: implement systemp ops.
+    switch (ctrl->sys_op)
+    {
+    case SYS_OP::ei:
+        ime = true;
+        break;
+    case SYS_OP::di:
+        ime = false;
+        break;
+    }
 }

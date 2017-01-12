@@ -141,15 +141,18 @@ public:
 
     const std::vector<Instruction> ops;
     const std::vector<Instruction> cb_ops;
+    const Instruction interrupt_op;
 
     Instructions() :
         ops(make_ops()),
-        cb_ops(make_cb_ops())
+        cb_ops(make_cb_ops()),
+        interrupt_op(make_interrupt_op())
     {}
 
 private:
     static std::vector<Instruction> make_ops();
     static std::vector<Instruction> make_cb_ops();
+    static Instruction make_interrupt_op();
 };
 
 #endif

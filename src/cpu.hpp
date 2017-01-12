@@ -24,13 +24,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "instructions.hpp"
 
 class MMU;
-struct CPU_Control;
+class InterruptController;
 
 class CPU
 {
 public:
-    CPU(MMU *mmu) :
-        mmu(mmu)
+    CPU(MMU *mmu, InterruptController *ic) :
+        mmu(mmu), ic(ic)
     {}
 
     void reset();
@@ -62,9 +62,10 @@ public:
     std::uint16_t PC;
     std::uint16_t SP;
 
-    bool interrupts_enabled;
+    bool ime;
 
     MMU *mmu;
+    InterruptController *ic;
 
     const CPU_Control *ctrl;
 
