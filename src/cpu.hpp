@@ -26,9 +26,33 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 class MMU;
 class InterruptController;
 
+struct CPUState
+{
+    std::uint8_t A;
+    std::uint8_t F;
+    std::uint8_t B;
+    std::uint8_t C;
+    std::uint8_t D;
+    std::uint8_t E;
+    std::uint8_t H;
+    std::uint8_t L;
+
+    std::uint16_t PC;
+    std::uint16_t SP;
+
+    bool ime;
+};
+
 class CPU
 {
 public:
+    static const std::uint8_t z_mask = (1 << 7);
+    static const std::uint8_t n_mask = (1 << 6);
+    static const std::uint8_t h_mask = (1 << 5);
+    static const std::uint8_t c_mask = (1 << 4);
+    static const std::uint8_t all_flags_mask =
+        z_mask | n_mask | h_mask | c_mask;
+
     CPU(MMU *mmu, InterruptController *ic) :
         mmu(mmu), ic(ic)
     {}
@@ -36,18 +60,13 @@ public:
     void reset();
     void step();
 
-//private:
-    // Not private right now so that main code can access for (simulated) break points.
+    CPUState getState();
+    void setState(const CPUState &state);
 
-    static const std::uint8_t z_mask = (1 << 7);
-    static const std::uint8_t n_mask = (1 << 6);
-    static const std::uint8_t h_mask = (1 << 5);
-    static const std::uint8_t c_shift = 4;
-    static const std::uint8_t c_mask = (1 << c_shift);
+    std::uint16_t getPC() { return PC; }
+    bool isFetching() { return ctrl->decode; }
 
-    static const std::uint8_t all_flags_mask =
-        z_mask | n_mask | h_mask | c_mask;
-
+private:
     const Instructions instr;
 
     std::uint8_t A;

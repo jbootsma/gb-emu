@@ -152,7 +152,7 @@ void CPU::step()
 {
     std::uint8_t data_in = 0;
 
-    if (ctrl->decode &&         // Can only interrupt at the end of an exception.
+    if (ctrl->decode &&         // Can only interrupt at the end of an instruction.
         ime &&                  // and only if interrupts are enabled.
         ic->interrupt_pending())  // and only if an interrupt is actually pending.
     {
@@ -489,4 +489,28 @@ void CPU::step()
         ime = false;
         break;
     }
+}
+
+CPUState CPU::getState()
+{
+    // Can only get the state between instructions.
+    assert(ctrl->decode);
+    return CPUState{ A, F, B, C, D, E, H, L, PC, SP, ime };
+}
+
+void CPU::setState(const CPUState& state)
+{
+    // Can only change state between instructions.
+    assert(ctrl->decode);
+    A = state.A;
+    F = state.F;
+    B = state.B;
+    C = state.C;
+    D = state.D;
+    E = state.E;
+    H = state.H;
+    L = state.L;
+    PC = state.PC;
+    SP = state.SP;
+    ime = state.ime;
 }

@@ -15,29 +15,36 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <exception>
-#include <fstream>
-#include <iostream>
-#include <stdexcept>
+#ifndef SYSTEM_HPP
+#define SYSTEM_HPP
 
-#include "system.hpp"
+#include <cstdint>
+#include <iosfwd>
 
-int main(int argc, char **argv)
+#include "config.hpp"
+#include "cpu.hpp"
+#include "interrupt_controller.hpp"
+#include "mmu.hpp"
+#include "timer.hpp"
+
+class System
 {
-    try
-    {
-        if (argc < 2) throw std::runtime_error("A rom must be supplied.");
+public:
+    System(std::istream &romfile);
 
-        std::ifstream rom_file(argv[1], std::ios::in | std::ios::binary);
-        if (!rom_file) throw std::runtime_error("Could not open supplied rom.");
+    void reset();
+    void step();
+    void run();
 
-        System sys(rom_file);
-        rom_file.close();
+    std::uint16_t breakpoints[NUM_BREAKPOINTS];
 
-        sys.run();
-    }
-    catch (std::exception &e)
-    {
-        std::cout << "\nError: " << e.what() << std::endl;
-    }
-}
+    InterruptController ic;
+    Timer timer;
+    MMU mmu;
+    CPU cpu;
+
+private:
+    bool checkBreakpoints();
+};
+
+#endif
