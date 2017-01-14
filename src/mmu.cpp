@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <iostream>
 
 #include "interrupt_controller.hpp"
+#include "timer.hpp"
 
 std::uint8_t MMU::read_mem(std::uint16_t adr)
 {
@@ -28,6 +29,14 @@ std::uint8_t MMU::read_mem(std::uint16_t adr)
         return ic->getIF();
     case IE_ADR:
         return ic->getIE();
+    case DIV_ADR:
+        return timer->getDIV();
+    case TIMA_ADR:
+        return timer->getTIMA();
+    case TMA_ADR:
+        return timer->getTMA();
+    case TAC_ADR:
+        return timer->getTAC();
     default:
         return mem[adr];
     }
@@ -46,6 +55,18 @@ void MMU::write_mem(std::uint16_t adr, std::uint8_t val)
         break;
     case IE_ADR:
         ic->setIE(val);
+        break;
+    case DIV_ADR:
+        timer->setDIV(val);
+        break;
+    case TIMA_ADR:
+        timer->setTIMA(val);
+        break;
+    case TMA_ADR:
+        timer->setTMA(val);
+        break;
+    case TAC_ADR:
+        timer->setTAC(val);
         break;
     default:
         mem[adr] = val;
