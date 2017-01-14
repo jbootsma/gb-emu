@@ -49,6 +49,8 @@ void CPU::reset()
     SP = 0;
 
     ime = false;
+    halting = false;
+    halt_bug = false;
 
     ctrl = &instr.ops[0].front();
 }
@@ -120,7 +122,12 @@ std::uint16_t CPU::getr16(REG16 reg)
             break16(val - 1, H, L);
             return val;
         }
-    case REG16::PC: return PC++;
+    case REG16::PC:
+        {
+            std::uint16_t val = PC++;
+            if (halt_bug) PC--;
+            return val;
+        }
     case REG16::SP: return SP;
     case REG16::T: return T;
     case REG16::TP1: return T + 1;
@@ -151,6 +158,8 @@ void CPU::setr16(REG16 reg, std::uint16_t val)
 void CPU::step()
 {
     std::uint8_t data_in = 0;
+
+    if (halting && !ic->interrupt_pending()) return;
 
     if (ctrl->decode &&         // Can only interrupt at the end of an instruction.
         ime &&                  // and only if interrupts are enabled.
@@ -487,6 +496,13 @@ void CPU::step()
         break;
     case SYS_OP::di:
         ime = false;
+        break;
+    case SYS_OP::halt:
+        if (!ime && ic->interrupt_pending()) halt_bug = true;
+        halting = !ic->interrupt_pending();
+        break;
+    case SYS_OP::stop:
+        assert(false);
         break;
     }
 }

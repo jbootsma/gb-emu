@@ -90,6 +90,8 @@ private:
 
     std::uint16_t T;
     bool cond_flag;
+    bool halting;
+    bool halt_bug;
 
     std::uint8_t getr8(REG8 reg);
     void setr8(REG8 reg, std::uint8_t val);
