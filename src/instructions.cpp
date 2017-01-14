@@ -1133,12 +1133,15 @@ std::vector<Instructions::Instruction> Instructions::make_cb_ops()
         if (target == REG8::F)
         {
             ctrl.alu_r8 = REG8::TL;
-            ctrl.write = true;
-            ctrl.adr = REG16::HL;
-            ctrl.mem_reg = REG8::TL;
-            op.push_back(ctrl);
+            if (ctrl.alu_op != ALU_OP::bit)
+            {
+                ctrl.write = true;
+                ctrl.adr = REG16::HL;
+                ctrl.mem_reg = REG8::TL;
+                op.push_back(ctrl);
 
-            reset(ctrl);
+                reset(ctrl);
+            }
             add_fetch(ctrl);
             op.push_back(ctrl);
         }
