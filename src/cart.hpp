@@ -15,12 +15,27 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef CONFIG_HPP
-#define CONFIG_HPP
+#ifndef CART_HPP
+#define CART_HPP
 
-#include <cstddef>
+#include <cstdint>
+#include <iosfwd>
+#include <vector>
 
-static const std::size_t NUM_BREAKPOINTS = 4;
-static const std::size_t NUM_MEM_BREAKPOINTS = 1;
+class Cart
+{
+public:
+    void loadCart(std::istream &cartFile);
+
+    std::uint8_t readROM(std::uint16_t adr);
+    void writeROM(std::uint16_t adr, std::uint8_t val);
+
+    std::uint8_t readRAM(std::uint16_t adr);
+    void writeRAM(std::uint16_t adr, std::uint8_t val);
+
+private:
+    std::vector<uint8_t> rom;
+    std::vector<uint8_t> ram;
+};
 
 #endif

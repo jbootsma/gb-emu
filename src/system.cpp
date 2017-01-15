@@ -20,19 +20,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "system.hpp"
 
-System::System(std::istream &romfile) :
+System::System() :
     timer(&ic),
-    mmu(&ic, &timer),
+    mmu(&cart, &gpu, &ic, &timer),
     cpu(&mmu, &ic)
 {
-    std::array<std::uint8_t, 0x8000> rom;
-    romfile.read((char*)&rom[0], rom.size());
-
-    for (std::uint16_t i = 0; i < rom.size(); i++)
-    {
-        mmu.write_mem(i, rom[i]);
-    }
-
+    for (std::int32_t &bp : breakpoints) bp = -1;
     reset();
 }
 
@@ -61,7 +54,12 @@ void System::run()
 
 bool System::checkBreakpoints()
 {
-    for (std::uint16_t adr : breakpoints)
+    if (mmu.break_req)
+    {
+        mmu.break_req = false;
+        return true;
+    }
+    for (std::int32_t adr : breakpoints)
     {
         if (cpu.getPC() == adr) return true;
     }

@@ -15,12 +15,38 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef CONFIG_HPP
-#define CONFIG_HPP
+#include <cstdint>
+#include <istream>
 
-#include <cstddef>
+#include "cart.hpp"
 
-static const std::size_t NUM_BREAKPOINTS = 4;
-static const std::size_t NUM_MEM_BREAKPOINTS = 1;
+void Cart::loadCart(std::istream &cartFile)
+{
+    rom.resize(0x8000);
+    cartFile.read((char*)&rom[0], rom.size());
 
-#endif
+    ram.resize(0x2000);
+}
+
+std::uint8_t Cart::readROM(std::uint16_t adr)
+{
+    if (rom.empty()) return 0xFF;
+    return rom.at(adr);
+}
+
+void Cart::writeROM(std::uint16_t, std::uint8_t)
+{
+    return;
+}
+
+std::uint8_t Cart::readRAM(std::uint16_t adr)
+{
+    if (ram.empty()) return 0xFF;
+    return ram.at(adr);
+}
+
+void Cart::writeRAM(std::uint16_t adr, std::uint8_t val)
+{
+    if (ram.empty()) return;
+    ram.at(adr) = val;
+}

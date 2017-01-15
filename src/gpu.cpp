@@ -15,12 +15,26 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef CONFIG_HPP
-#define CONFIG_HPP
+#include <cstdint>
 
-#include <cstddef>
+#include "gpu.hpp"
 
-static const std::size_t NUM_BREAKPOINTS = 4;
-static const std::size_t NUM_MEM_BREAKPOINTS = 1;
+std::uint8_t GPU::readVRAM(std::uint16_t adr)
+{
+    return vram.at(adr);
+}
 
-#endif
+void GPU::writeVRAM(std::uint16_t adr, std::uint8_t val)
+{
+    vram.at(adr) = val;
+}
+
+std::uint8_t GPU::readOAM(std::uint16_t adr)
+{
+    return oam.at(adr);
+}
+
+void GPU::writeOAM(std::uint16_t adr, std::uint8_t val)
+{
+    oam.at(adr) = val;
+}

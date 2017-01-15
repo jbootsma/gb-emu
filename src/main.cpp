@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <exception>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <stdexcept>
 
@@ -31,10 +32,70 @@ int main(int argc, char **argv)
         std::ifstream rom_file(argv[1], std::ios::in | std::ios::binary);
         if (!rom_file) throw std::runtime_error("Could not open supplied rom.");
 
-        System sys(rom_file);
+        System sys;
+        sys.cart.loadCart(rom_file);
         rom_file.close();
 
-        sys.run();
+        while (true)
+        {
+            CPUState state = sys.cpu.getState();
+
+            std::cout <<
+                "A: " << std::setfill('0') << std::setw(2) << std::hex << (int)state.A << '\n' <<
+                "F: " << std::setfill('0') << std::setw(2) << std::hex << (int)state.F << '\n' <<
+                "B: " << std::setfill('0') << std::setw(2) << std::hex << (int)state.B << '\n' <<
+                "C: " << std::setfill('0') << std::setw(2) << std::hex << (int)state.C << '\n' <<
+                "D: " << std::setfill('0') << std::setw(2) << std::hex << (int)state.D << '\n' <<
+                "E: " << std::setfill('0') << std::setw(2) << std::hex << (int)state.E << '\n' <<
+                "H: " << std::setfill('0') << std::setw(2) << std::hex << (int)state.H << '\n' <<
+                "L: " << std::setfill('0') << std::setw(2) << std::hex << (int)state.L << '\n' <<
+                "PC: " << std::setfill('0') << std::setw(4) << std::hex << (int)state.PC << '\n' <<
+                "SP: " << std::setfill('0') << std::setw(4) << std::hex << (int)state.SP << '\n' <<
+                "ime: " << state.ime << '\n' << std::endl;
+
+            char c;
+            std::cin >> c;
+            switch (c)
+            {
+            case 's':
+                sys.step();
+                break;
+            case 'r':
+                sys.reset();
+                break;
+            case 'c':
+                sys.run();
+                break;
+            case 'b':
+                {
+                    int idx;
+                    int adr;
+                    std::cin >> idx >> std::hex >> adr;
+                    sys.breakpoints[idx] = adr;
+                }
+                break;
+            case 'm':
+                {
+                    int idx;
+                    int adr;
+                    std::cin >> idx >> std::hex >> adr;
+                    sys.mmu.breakpoints[idx] = adr;
+                }
+                break;
+            case 'd':
+                {
+                    int adr;
+                    int count;
+                    std::cin >> std::hex >> adr >> count;
+
+                    for (std::uint16_t i = 0; i < count; i++)
+                    {
+                        std::cout << std::setw(2) << std::hex << (int)sys.mmu.read_mem((std::uint16_t)adr + i) << ' ';
+                    }
+                    std::cout << std::endl;
+                }
+            }
+        }
     }
     catch (std::exception &e)
     {

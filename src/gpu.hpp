@@ -15,12 +15,24 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef CONFIG_HPP
-#define CONFIG_HPP
+#ifndef GPU_HPP
+#define GPU_HPP
 
-#include <cstddef>
+#include <array>
+#include <cstdint>
 
-static const std::size_t NUM_BREAKPOINTS = 4;
-static const std::size_t NUM_MEM_BREAKPOINTS = 1;
+class GPU
+{
+public:
+    std::uint8_t readVRAM(std::uint16_t adr);
+    void writeVRAM(std::uint16_t adr, std::uint8_t val);
+
+    std::uint8_t readOAM(std::uint16_t adr);
+    void writeOAM(std::uint16_t adr, std::uint8_t val);
+
+private:
+    std::array<std::uint8_t, 0x2000> vram;
+    std::array<std::uint8_t, 0xa0> oam;
+};
 
 #endif

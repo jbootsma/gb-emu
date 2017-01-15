@@ -18,10 +18,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef MMU_HPP
 #define MMU_HPP
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <iosfwd>
 
+#include "config.hpp"
+
+class Cart;
 class InterruptController;
+class GPU;
 class Timer;
 
 class MMU
@@ -31,14 +37,29 @@ public:
     std::uint8_t read_mem(std::uint16_t adr);
     void write_mem(std::uint16_t adr, std::uint8_t val);
 
-    MMU(InterruptController *ic, Timer *timer) :
-        ic(ic), timer(timer)
-    {}
+    MMU(Cart *cart,
+        GPU *gpu,
+        InterruptController *ic,
+        Timer *timer) :
+        cart(cart), gpu(gpu), ic(ic), timer(timer),
+        break_req(false)
+    {
+        for (std::int32_t &adr : breakpoints) adr = -1;
+    }
+
+    bool break_req;
+    std::int32_t breakpoints[NUM_MEM_BREAKPOINTS];
 
 private:
-    std::uint8_t mem[(std::size_t)UINT16_MAX + 1];
+    Cart *cart;
+    GPU *gpu;
     InterruptController *ic;
     Timer *timer;
+    std::array<std::uint8_t, 0x2000> loram;
+    std::array<std::uint8_t, 0x79> hiram;
+
+    // Temporary until all registers are implemented.
+    std::array<std::uint8_t, 0x80> ioshadow;
 };
 
 #endif

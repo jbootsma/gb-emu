@@ -21,8 +21,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cstdint>
 #include <iosfwd>
 
+#include "cart.hpp"
 #include "config.hpp"
 #include "cpu.hpp"
+#include "gpu.hpp"
 #include "interrupt_controller.hpp"
 #include "mmu.hpp"
 #include "timer.hpp"
@@ -30,14 +32,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 class System
 {
 public:
-    System(std::istream &romfile);
+    System();
 
     void reset();
     void step();
     void run();
 
-    std::uint16_t breakpoints[NUM_BREAKPOINTS];
+    std::int32_t breakpoints[NUM_BREAKPOINTS];
 
+    Cart cart;
+    GPU gpu;
     InterruptController ic;
     Timer timer;
     MMU mmu;
