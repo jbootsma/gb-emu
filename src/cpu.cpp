@@ -160,6 +160,7 @@ void CPU::step()
     std::uint8_t data_in = 0;
 
     if (halting && !ic->interrupt_pending()) return;
+    halting = false;
 
     if (ctrl->decode &&         // Can only interrupt at the end of an instruction.
         ime &&                  // and only if interrupts are enabled.
