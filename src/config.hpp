@@ -23,4 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 static const std::size_t NUM_BREAKPOINTS = 4;
 static const std::size_t NUM_MEM_BREAKPOINTS = 1;
 
+static const std::size_t MAX_ROM_SIZE = 128 * 1024 * 1024; // 128 MiB
+
 #endif

@@ -31,6 +31,7 @@ System::System() :
 
 void System::reset()
 {
+    cart.reset();
     timer.reset();
     cpu.reset();
 }

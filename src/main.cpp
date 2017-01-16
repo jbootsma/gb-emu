@@ -36,8 +36,27 @@ int main(int argc, char **argv)
         sys.cart.loadCart(rom_file);
         rom_file.close();
 
+        CartHeader header = sys.cart.getHeader();
+        std::cout << "Loaded " << header.title <<
+            " v" << std::dec << (int)header.version <<
+            (header.international ? "" : " (J)") <<
+            "\nL: " << std::hex << std::setfill('0') << std::setw(2) << (int)header.licensee <<
+            " L2: " << header.new_licensee <<
+            " M: " << header.manufacturer <<
+            "\nROM: " << std::dec << (header.rom_size / 1024) << 'K' <<
+            " RAM: " << std::dec << (header.ram_size / 1024) << 'K' <<
+            "\nChecksum: " << std::hex << std::setw(2) << (int)header.checksum <<
+            (header.checksum_passed ? "" : " (BAD)") <<
+            " Global: " << header.global_checksum << std::hex << std::setw(4) << header.global_checksum <<
+            (header.global_checksum_passed ? "" : " (BAD)") << '\n';
+
+        if (!header.dmg_compat) std::cout << "WARN: ROM appears to be incomaptible with DMG.\n";
+        if (!header.logo_check_passed) std::cout << "WARN: Logo data in header appears to be corrupt.\n";
+
         while (true)
         {
+            std::cout << std::endl;
+
             CPUState state = sys.cpu.getState();
 
             std::cout <<
